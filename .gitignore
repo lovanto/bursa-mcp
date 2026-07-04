@@ -1,0 +1,20 @@
+# Fetched IDX data — never commit (ToU: personal use only, no redistribution)
+data/
+
+# Go build artifacts (binaries land next to main.go or in repo root)
+/spike-trading
+/spike-xbrl
+cmd/spike-trading/spike-trading
+cmd/spike-xbrl/spike-xbrl
+*.exe
+
+# Python spike tooling (cloudscraper probes)
+.venv/
+__pycache__/
+*.pyc
+
+# Editor / OS noise
+.idea/
+.vscode/
+*.swp
+.DS_Store
