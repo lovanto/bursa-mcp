@@ -178,6 +178,15 @@ type financialInput struct {
 	Period string `json:"period,omitempty" jsonschema:"reporting period: tw1, tw2, tw3, or audit (default tw1)"`
 }
 
+// ---- Tool: get_announcements ----
+
+type announcementInput struct {
+	Code    string `json:"code" jsonschema:"emiten ticker, e.g. BBCA"`
+	Keyword string `json:"keyword,omitempty" jsonschema:"optional search keyword, e.g. dividen or RUPS"`
+	Days    int    `json:"days,omitempty" jsonschema:"look-back window in days (1-365, default 30)"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"maximum announcements to return (default 20, max 50)"`
+}
+
 // ---- Tool: screen_stocks ----
 
 type screenerInput struct {
@@ -347,6 +356,17 @@ func registerTools(s *mcp.Server, client *idx.Client) {
 			return toolError(err), idx.FinancialReport{}, nil
 		}
 		return nil, *rep, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "get_announcements",
+		Description: "Official IDX disclosures (keterbukaan informasi) for a listed company, newest first: announcement number, date, title, and PDF attachment links. Filter by keyword (e.g. dividen, RUPS) and look-back window. This is where dividend schedules, RUPS calls, and corporate actions are announced.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in announcementInput) (*mcp.CallToolResult, idx.AnnouncementList, error) {
+		list, err := client.Announcements(ctx, in.Code, in.Keyword, in.Days, in.Limit)
+		if err != nil {
+			return toolError(err), idx.AnnouncementList{}, nil
+		}
+		return nil, *list, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
