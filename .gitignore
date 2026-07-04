@@ -2,11 +2,17 @@
 data/
 
 # Go build artifacts (binaries land next to main.go or in repo root)
+/idx-mcp
 /spike-trading
 /spike-xbrl
 cmd/spike-trading/spike-trading
 cmd/spike-xbrl/spike-xbrl
 *.exe
+
+# SQLite cache (runtime state, per-user)
+*.db
+*.db-wal
+*.db-shm
 
 # Python spike tooling (cloudscraper probes)
 .venv/
