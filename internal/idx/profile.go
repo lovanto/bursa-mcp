@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -27,6 +28,46 @@ type CompanyProfile struct {
 	Phone        string     `json:"phone"`
 	MainBusiness string     `json:"main_business"`
 	Dividends    []Dividend `json:"dividends"`
+}
+
+// Shareholder is one ownership entry from the profile's PemegangSaham array.
+// Categories include "More than 5%", "Treasury Stock", and public buckets
+// (Masyarakat Warkat / Non Warkat). Controller marks the controlling holder.
+type Shareholder struct {
+	Name       string  `json:"name"`
+	Category   string  `json:"category"`
+	Shares     float64 `json:"shares"`
+	Percentage float64 `json:"percentage"`
+	Controller bool    `json:"controller"`
+}
+
+// Subsidiary is one entry from the profile's AnakPerusahaan array. TotalAssets
+// is expressed in AssetUnit (e.g. "JUTAAN" = millions) of AssetCurrency.
+type Subsidiary struct {
+	Name            string  `json:"name"`
+	LineOfBusiness  string  `json:"line_of_business"`
+	Location        string  `json:"location"`
+	OwnershipPct    float64 `json:"ownership_percent"`
+	TotalAssets     float64 `json:"total_assets"`
+	AssetCurrency   string  `json:"asset_currency"`
+	AssetUnit       string  `json:"asset_unit"`
+	OperationStatus string  `json:"operation_status"`
+	CommercialYear  string  `json:"commercial_year"`
+}
+
+// BoardMember is a director or commissioner. Independent applies to
+// commissioners, Affiliated to directors; each is false/omitted for the other.
+type BoardMember struct {
+	Name        string `json:"name"`
+	Position    string `json:"position"`
+	Independent bool   `json:"independent,omitempty"`
+	Affiliated  bool   `json:"affiliated,omitempty"`
+}
+
+// Management is the board of directors and commissioners.
+type Management struct {
+	Directors     []BoardMember `json:"directors"`
+	Commissioners []BoardMember `json:"commissioners"`
 }
 
 // Dividend is one corporate-action dividend entry. Source is the profile
@@ -77,6 +118,34 @@ type rawProfileResponse struct {
 		TanggalDPS                   string  `json:"TanggalDPS"`
 		TanggalPembayaran            string  `json:"TanggalPembayaran"`
 	} `json:"Dividen"`
+	PemegangSaham []struct {
+		Nama       string  `json:"Nama"`
+		Kategori   string  `json:"Kategori"`
+		Jumlah     float64 `json:"Jumlah"`
+		Persentase float64 `json:"Persentase"`
+		Pengendali bool    `json:"Pengendali"`
+	} `json:"PemegangSaham"`
+	Direktur []struct {
+		Nama     string `json:"Nama"`
+		Jabatan  string `json:"Jabatan"`
+		Afiliasi bool   `json:"Afiliasi"`
+	} `json:"Direktur"`
+	Komisaris []struct {
+		Nama       string `json:"Nama"`
+		Jabatan    string `json:"Jabatan"`
+		Independen bool   `json:"Independen"`
+	} `json:"Komisaris"`
+	AnakPerusahaan []struct {
+		Nama          string  `json:"Nama"`
+		BidangUsaha   string  `json:"BidangUsaha"`
+		Lokasi        string  `json:"Lokasi"`
+		Persentase    float64 `json:"Persentase"`
+		JumlahAset    float64 `json:"JumlahAset"`
+		MataUang      string  `json:"MataUang"`
+		Satuan        string  `json:"Satuan"`
+		StatusOperasi string  `json:"StatusOperasi"`
+		TahunKomersil string  `json:"TahunKomersil"`
+	} `json:"AnakPerusahaan"`
 }
 
 // fetchProfileRaw retrieves and decodes GetCompanyProfilesDetail, shared by the
@@ -138,6 +207,100 @@ func (c *Client) Dividends(ctx context.Context, code string) ([]Dividend, error)
 		return nil, fmt.Errorf("no profile found for %q", normalizeCode(code))
 	}
 	return dividendsFromRaw(raw), nil
+}
+
+// Shareholders returns the ownership breakdown for an emiten code, sorted by
+// percentage held (largest first). Backed by the profile payload.
+func (c *Client) Shareholders(ctx context.Context, code string) ([]Shareholder, error) {
+	raw, err := c.fetchProfileRaw(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if len(raw.Profiles) == 0 {
+		return nil, fmt.Errorf("no profile found for %q", normalizeCode(code))
+	}
+
+	out := make([]Shareholder, 0, len(raw.PemegangSaham))
+	for _, s := range raw.PemegangSaham {
+		out = append(out, Shareholder{
+			Name:       strings.TrimSpace(s.Nama),
+			Category:   s.Kategori,
+			Shares:     s.Jumlah,
+			Percentage: s.Persentase,
+			Controller: s.Pengendali,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Percentage > out[j].Percentage })
+	return out, nil
+}
+
+// Subsidiaries returns the consolidated subsidiaries for an emiten code, sorted
+// by ownership percentage (largest first). Backed by the profile payload.
+func (c *Client) Subsidiaries(ctx context.Context, code string) ([]Subsidiary, error) {
+	raw, err := c.fetchProfileRaw(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if len(raw.Profiles) == 0 {
+		return nil, fmt.Errorf("no profile found for %q", normalizeCode(code))
+	}
+
+	out := make([]Subsidiary, 0, len(raw.AnakPerusahaan))
+	for _, s := range raw.AnakPerusahaan {
+		out = append(out, Subsidiary{
+			Name:            strings.TrimSpace(s.Nama),
+			LineOfBusiness:  cleanText(s.BidangUsaha),
+			Location:        strings.TrimSpace(s.Lokasi),
+			OwnershipPct:    s.Persentase,
+			TotalAssets:     s.JumlahAset,
+			AssetCurrency:   s.MataUang,
+			AssetUnit:       s.Satuan,
+			OperationStatus: s.StatusOperasi,
+			CommercialYear:  s.TahunKomersil,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].OwnershipPct > out[j].OwnershipPct })
+	return out, nil
+}
+
+// Management returns the board of directors and commissioners for an emiten
+// code. Backed by the profile payload.
+func (c *Client) Management(ctx context.Context, code string) (*Management, error) {
+	raw, err := c.fetchProfileRaw(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if len(raw.Profiles) == 0 {
+		return nil, fmt.Errorf("no profile found for %q", normalizeCode(code))
+	}
+
+	m := &Management{
+		Directors:     make([]BoardMember, 0, len(raw.Direktur)),
+		Commissioners: make([]BoardMember, 0, len(raw.Komisaris)),
+	}
+	for _, d := range raw.Direktur {
+		m.Directors = append(m.Directors, BoardMember{
+			Name:       strings.TrimSpace(d.Nama),
+			Position:   strings.TrimSpace(d.Jabatan),
+			Affiliated: d.Afiliasi,
+		})
+	}
+	for _, k := range raw.Komisaris {
+		m.Commissioners = append(m.Commissioners, BoardMember{
+			Name:        strings.TrimSpace(k.Nama),
+			Position:    strings.TrimSpace(k.Jabatan),
+			Independent: k.Independen,
+		})
+	}
+	return m, nil
+}
+
+// cleanText trims whitespace and collapses embedded CR/LF (IDX free-text fields
+// often contain "\r\n") into single spaces.
+func cleanText(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // dividendsFromRaw maps the raw Dividen array into cleaned Dividend values.
