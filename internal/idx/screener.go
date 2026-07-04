@@ -16,16 +16,18 @@ const (
 
 // ScreenRow is one stock in the screener output.
 type ScreenRow struct {
-	Code          string  `json:"code"`
-	Name          string  `json:"name"`
-	Sector        string  `json:"sector,omitempty"`
-	Close         float64 `json:"close"`
-	Change        float64 `json:"change"`
-	ChangePercent float64 `json:"change_percent"`
-	Volume        float64 `json:"volume"`
-	Value         float64 `json:"value"`
-	Frequency     float64 `json:"frequency"`
-	ForeignNet    float64 `json:"foreign_net"`
+	Code          string   `json:"code"`
+	Name          string   `json:"name"`
+	Sector        string   `json:"sector,omitempty"`
+	Close         float64  `json:"close"`
+	Change        float64  `json:"change"`
+	ChangePercent float64  `json:"change_percent"`
+	Volume        float64  `json:"volume"`
+	Value         float64  `json:"value"`
+	Frequency     float64  `json:"frequency"`
+	ForeignNet    float64  `json:"foreign_net"`
+	Board         string   `json:"board,omitempty"`
+	Notations     []string `json:"notations,omitempty"` // IDX special-notation letters, e.g. ["E","X"]
 }
 
 // ScreenerResult is the ranked, filtered slice of the daily per-stock feed.
@@ -139,10 +141,13 @@ func screenFeed(res *ScreenerResult, raw rawStockSummary, sectorOf map[string]st
 		if opts.sector != "" && !strings.Contains(strings.ToLower(sec), opts.sector) {
 			continue
 		}
+		board, notations := decodeRemarks(r.Remarks)
 		row := ScreenRow{
 			Code:       r.StockCode,
 			Name:       r.StockName,
 			Sector:     sec,
+			Board:      board,
+			Notations:  notationCodes(notations),
 			Close:      r.Close,
 			Change:     r.Change,
 			Volume:     r.Volume,
