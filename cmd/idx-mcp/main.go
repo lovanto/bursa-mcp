@@ -141,6 +141,13 @@ type brokerSummaryOutput struct {
 	Brokers []idx.BrokerActivity `json:"brokers"`
 }
 
+// ---- Tool: list_companies ----
+
+type listCompaniesInput struct {
+	Query  string `json:"query,omitempty" jsonschema:"case-insensitive substring to match against ticker code or company name, e.g. bank or BBC; omit to list all"`
+	Sector string `json:"sector,omitempty" jsonschema:"optional sector/sub-sector substring filter, e.g. Energi or Keuangan"`
+}
+
 // ---- Tool: get_financial_report ----
 
 type financialInput struct {
@@ -251,6 +258,17 @@ func registerTools(s *mcp.Server, client *idx.Client) {
 			return toolError(err), brokerSummaryOutput{}, nil
 		}
 		return nil, brokerSummaryOutput{Brokers: brokers}, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "list_companies",
+		Description: "Search or browse the IDX listed-company directory (~957 companies) to discover ticker codes: filter by a case-insensitive query on code/name and/or a sector substring. Returns code, name, listing board/date, sector, and industry; capped at 100 results (truncated flag set when more matched).",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in listCompaniesInput) (*mcp.CallToolResult, idx.CompanyDirectory, error) {
+		dir, err := client.ListCompanies(ctx, in.Query, in.Sector)
+		if err != nil {
+			return toolError(err), idx.CompanyDirectory{}, nil
+		}
+		return nil, *dir, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
