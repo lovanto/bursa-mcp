@@ -178,6 +178,13 @@ type financialInput struct {
 	Period string `json:"period,omitempty" jsonschema:"reporting period: tw1, tw2, tw3, or audit (default tw1)"`
 }
 
+// ---- Tool: get_foreign_flow_trend ----
+
+type flowTrendInput struct {
+	Code string `json:"code" jsonschema:"emiten ticker, e.g. BBCA"`
+	Days int    `json:"days,omitempty" jsonschema:"number of recent trading days to analyse (1-365, default 60)"`
+}
+
 // ---- Tool: get_valuation_ratios ----
 
 type valuationInput struct {
@@ -321,6 +328,17 @@ func registerTools(s *mcp.Server, client *idx.Client) {
 			return toolError(err), idx.FinancialReport{}, nil
 		}
 		return nil, *rep, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "get_foreign_flow_trend",
+		Description: "Foreign accumulation/distribution analysis for an IDX-listed stock: net foreign flow (shares and approximate IDR value), foreign share of volume, and price change over 5/20/60-day windows, plus the current consecutive net-buy/net-sell streak. Built from official IDX foreign flow data.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in flowTrendInput) (*mcp.CallToolResult, idx.ForeignFlowTrend, error) {
+		tr, err := client.ForeignFlowTrend(ctx, in.Code, in.Days)
+		if err != nil {
+			return toolError(err), idx.ForeignFlowTrend{}, nil
+		}
+		return nil, *tr, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
