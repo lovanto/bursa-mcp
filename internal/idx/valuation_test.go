@@ -128,6 +128,32 @@ func TestBuildValuationGuards(t *testing.T) {
 	}
 }
 
+func TestApplyDividendYield(t *testing.T) {
+	v := &ValuationRatios{Price: 100}
+	applyDividendYield(v, []Dividend{
+		{BookYear: "2025", CashPerShare: 99, Currency: "IDR"}, // older book year: ignored
+		{BookYear: "2026", CashPerShare: 2, Currency: "IDR"},  // interim
+		{BookYear: "2026", CashPerShare: 3},                   // final, empty currency = IDR
+		{BookYear: "2026", CashPerShare: 1, Currency: "USD"},  // non-IDR: excluded
+	})
+	if v.DividendPerShare != 5 || v.DividendBookYear != "2026" {
+		t.Errorf("DPS/year = %v/%q, want 5/2026", v.DividendPerShare, v.DividendBookYear)
+	}
+	if v.DividendYield != 5 { // 5/100*100
+		t.Errorf("yield = %v, want 5", v.DividendYield)
+	}
+	if !strings.Contains(strings.Join(v.Notes, " "), "Non-IDR") {
+		t.Errorf("expected non-IDR note, got %v", v.Notes)
+	}
+
+	// No dividends: fields stay zero, no note.
+	v2 := &ValuationRatios{Price: 100}
+	applyDividendYield(v2, nil)
+	if v2.DividendPerShare != 0 || v2.DividendYield != 0 || len(v2.Notes) != 0 {
+		t.Errorf("expected untouched fields for no dividends, got %+v", v2)
+	}
+}
+
 func TestAnnualizationFactor(t *testing.T) {
 	cases := map[string]float64{"TW1": 4, "TW2": 2, "TW3": 4.0 / 3, "Audit": 1}
 	for p, want := range cases {

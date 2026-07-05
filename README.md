@@ -31,7 +31,11 @@ SQLite cache.
 | `get_broker_summary` | _(none)_ | Per-broker trading activity for the latest day (all ~88 brokers): firm code, name, volume, value, frequency; sorted by traded value |
 | `list_companies` | `query` (optional, matches code/name), `sector` (optional) | IDX listed-company directory (~957) for ticker discovery: code, name, listing board/date, sector, industry. Capped at 100 results (`truncated` flag when more matched) |
 | `get_financial_report` | `code`, `year` (e.g. `2026`), `period` (`tw1`/`tw2`/`tw3`/`audit`, default `tw1`) | Key accounts (assets, liabilities, equity, revenue, profit, …) parsed from the official XBRL filing |
-| `get_valuation_ratios` | `code`, `year`, `period` (`tw1`/`tw2`/`tw3`/`audit`, default `tw1`) | Market cap, PER, PBV, book value per share, and annualized EPS — computed from the latest official close, listed shares, and the XBRL filing for that period |
+| `get_valuation_ratios` | `code`, `year`, `period` (`tw1`/`tw2`/`tw3`/`audit`, default `tw1`) | Market cap, PER, PBV, book value per share, annualized EPS, and dividend yield — computed from the latest official close, listed shares, and the XBRL filing for that period |
+| `get_financial_growth` | `code`, `year`, `period` | YoY growth from a single XBRL filing: revenue/profit vs the same period a year earlier, balance sheet vs prior year-end, and net-margin trend |
+| `get_foreign_flow_trend` | `code`, `days` (default 60) | Foreign accumulation/distribution: net flow (shares + approx IDR), foreign share of volume, and price change over 5/20/60-day windows, plus the current net-buy/net-sell streak |
+| `screen_stocks` | `rank_by` (gainers/losers/value/volume/foreign buy/sell), `sector`, `min_value`, `min_price`, `max_price`, `limit` | Screen all ~950 stocks on the latest trading day, with listing board and special-notation flags per stock |
+| `get_announcements` | `code`, `keyword` (optional, e.g. `dividen`), `days` (default 30), `limit` | Official IDX disclosures (keterbukaan informasi), newest first, with PDF attachment links — where dividend schedules, RUPS calls, and corporate actions are announced |
 
 Concept coverage is validated across sectors (bank, infrastructure, general conglomerate). Non-
 financial issuers report `SalesAndRevenue`; banks report `InterestIncome`. Earnings-per-share is a

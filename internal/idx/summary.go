@@ -42,6 +42,7 @@ type rawStockSummary struct {
 		Date        string  `json:"Date"`
 		StockCode   string  `json:"StockCode"`
 		StockName   string  `json:"StockName"`
+		Remarks     string  `json:"Remarks"`
 		Previous    float64 `json:"Previous"`
 		Close       float64 `json:"Close"`
 		Change      float64 `json:"Change"`
