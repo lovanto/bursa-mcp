@@ -227,6 +227,12 @@ type issuedInput struct {
 	Code string `json:"code" jsonschema:"emiten ticker, e.g. BBCA"`
 }
 
+// ---- Tool: get_index_constituents ----
+
+type constituentsInput struct {
+	Index string `json:"index" jsonschema:"index code, e.g. LQ45, IDX30, IDX80, KOMPAS100, BISNIS-27, MNC36, SMINFRA18, IDXESGL"`
+}
+
 // ---- Tool: compare_stocks ----
 
 type compareInput struct {
@@ -432,6 +438,17 @@ func registerTools(s *mcp.Server, client *idx.Client) {
 			return toolError(err), idx.ValuationRatios{}, nil
 		}
 		return nil, *v, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "get_index_constituents",
+		Description: "Current members of an IDX stock index (LQ45, IDX30, IDX80, KOMPAS100, …) from the latest official evaluation announcement: ticker, free-float ratio, index shares, capped weight, and whether the member is new/kept/adjusted. Parsed from the announcement's attached workbook.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in constituentsInput) (*mcp.CallToolResult, idx.IndexConstituents, error) {
+		ic, err := client.IndexConstituents(ctx, in.Index)
+		if err != nil {
+			return toolError(err), idx.IndexConstituents{}, nil
+		}
+		return nil, *ic, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
