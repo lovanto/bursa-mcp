@@ -227,6 +227,13 @@ type issuedInput struct {
 	Code string `json:"code" jsonschema:"emiten ticker, e.g. BBCA"`
 }
 
+// ---- Tool: get_dividend_history ----
+
+type divHistoryInput struct {
+	Code  string `json:"code" jsonschema:"emiten ticker, e.g. BBCA"`
+	Years int    `json:"years,omitempty" jsonschema:"look-back window in years (1-5, default 3)"`
+}
+
 func registerTools(s *mcp.Server, client *idx.Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "get_trading_info",
@@ -417,6 +424,17 @@ func registerTools(s *mcp.Server, client *idx.Client) {
 			return toolError(err), idx.ValuationRatios{}, nil
 		}
 		return nil, *v, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "get_dividend_history",
+		Description: "Multi-year timeline of dividend-related official disclosures for an IDX-listed company, newest first: schedule announcements (cum/ex/payment dates) with PDF attachment links. Amounts live in the PDFs; use get_dividends for the latest structured declaration.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in divHistoryInput) (*mcp.CallToolResult, idx.DividendHistory, error) {
+		h, err := client.DividendHistory(ctx, in.Code, in.Years)
+		if err != nil {
+			return toolError(err), idx.DividendHistory{}, nil
+		}
+		return nil, *h, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
