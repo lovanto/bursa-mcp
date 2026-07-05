@@ -221,6 +221,12 @@ type valuationInput struct {
 	Period string `json:"period,omitempty" jsonschema:"reporting period: tw1, tw2, tw3, or audit (default tw1)"`
 }
 
+// ---- Tool: get_issued_history ----
+
+type issuedInput struct {
+	Code string `json:"code" jsonschema:"emiten ticker, e.g. BBCA"`
+}
+
 func registerTools(s *mcp.Server, client *idx.Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "get_trading_info",
@@ -411,6 +417,17 @@ func registerTools(s *mcp.Server, client *idx.Client) {
 			return toolError(err), idx.ValuationRatios{}, nil
 		}
 		return nil, *v, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "get_issued_history",
+		Description: "Corporate actions that changed an IDX-listed company's issued share count (stock splits, rights issues, partial delistings, …), oldest first — useful for spotting dilution or float changes behind a price history.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in issuedInput) (*mcp.CallToolResult, idx.IssuedHistory, error) {
+		h, err := client.IssuedHistory(ctx, in.Code)
+		if err != nil {
+			return toolError(err), idx.IssuedHistory{}, nil
+		}
+		return nil, *h, nil
 	})
 }
 
