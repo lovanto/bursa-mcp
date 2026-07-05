@@ -27,6 +27,9 @@ type TradingDay struct {
 	ForeignBuy   float64 `json:"foreign_buy"`
 	ForeignSell  float64 `json:"foreign_sell"`
 	ForeignNet   float64 `json:"foreign_net"` // derived: buy - sell
+	// Decoded from the Remarks attribute string (see remarks.go).
+	Board            string            `json:"board,omitempty"`
+	SpecialNotations []SpecialNotation `json:"special_notations,omitempty"`
 }
 
 // rawTradingResponse maps the GetTradingInfoSS payload. Field names match the
@@ -37,6 +40,7 @@ type rawTradingResponse struct {
 		Date         string  `json:"Date"`
 		StockCode    string  `json:"StockCode"`
 		StockName    string  `json:"StockName"`
+		Remarks      string  `json:"Remarks"`
 		Previous     float64 `json:"Previous"`
 		OpenPrice    float64 `json:"OpenPrice"`
 		High         float64 `json:"High"`
@@ -77,23 +81,26 @@ func (c *Client) TradingInfo(ctx context.Context, code string, length int) ([]Tr
 
 	days := make([]TradingDay, 0, len(raw.Replies))
 	for _, r := range raw.Replies {
+		board, notations := decodeRemarks(r.Remarks)
 		days = append(days, TradingDay{
-			Date:         trimDate(r.Date),
-			StockCode:    r.StockCode,
-			StockName:    r.StockName,
-			Previous:     r.Previous,
-			Open:         r.OpenPrice,
-			High:         r.High,
-			Low:          r.Low,
-			Close:        r.Close,
-			Change:       r.Change,
-			Volume:       r.Volume,
-			Value:        r.Value,
-			Frequency:    r.Frequency,
-			ListedShares: r.ListedShares,
-			ForeignBuy:   r.ForeignBuy,
-			ForeignSell:  r.ForeignSell,
-			ForeignNet:   r.ForeignBuy - r.ForeignSell,
+			Date:             trimDate(r.Date),
+			StockCode:        r.StockCode,
+			StockName:        r.StockName,
+			Previous:         r.Previous,
+			Open:             r.OpenPrice,
+			High:             r.High,
+			Low:              r.Low,
+			Close:            r.Close,
+			Change:           r.Change,
+			Volume:           r.Volume,
+			Value:            r.Value,
+			Frequency:        r.Frequency,
+			ListedShares:     r.ListedShares,
+			ForeignBuy:       r.ForeignBuy,
+			ForeignSell:      r.ForeignSell,
+			ForeignNet:       r.ForeignBuy - r.ForeignSell,
+			Board:            board,
+			SpecialNotations: notations,
 		})
 	}
 	return days, nil

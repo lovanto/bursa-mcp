@@ -24,11 +24,12 @@ const baseURL = "https://www.idx.co.id"
 //   - profile: rarely changes
 //   - financial report: immutable once published (cached forever via ttl<=0)
 const (
-	ttlTrading = 6 * time.Hour
-	ttlProfile = 30 * 24 * time.Hour
-	ttlIndex   = 6 * time.Hour
-	ttlFinList = 24 * time.Hour
-	ttlFinData = 0 // immutable
+	ttlTrading  = 6 * time.Hour
+	ttlProfile  = 30 * 24 * time.Hour
+	ttlIndex    = 6 * time.Hour
+	ttlFinList  = 24 * time.Hour
+	ttlFinData  = 0 // immutable
+	ttlAnnounce = 1 * time.Hour
 )
 
 // Client is the high-level IDX data client. It is safe for concurrent use; the

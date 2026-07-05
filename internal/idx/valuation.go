@@ -32,8 +32,11 @@ type ValuationRatios struct {
 	Equity              float64  `json:"equity"`                // attributable to parent when available
 	BookValuePerShare   float64  `json:"book_value_per_share"`
 	EPSAnnualized       float64  `json:"eps_annualized"`
-	PER                 float64  `json:"per"` // 0 when earnings are non-positive (see notes)
-	PBV                 float64  `json:"pbv"` // 0 when equity is non-positive (see notes)
+	PER                 float64  `json:"per"`                          // 0 when earnings are non-positive (see notes)
+	PBV                 float64  `json:"pbv"`                          // 0 when equity is non-positive (see notes)
+	DividendPerShare    float64  `json:"dividend_per_share,omitempty"` // sum of latest book-year IDR cash dividends
+	DividendBookYear    string   `json:"dividend_book_year,omitempty"`
+	DividendYield       float64  `json:"dividend_yield_pct,omitempty"` // percent of current price
 	Notes               []string `json:"notes,omitempty"`
 }
 
@@ -69,7 +72,57 @@ func (c *Client) ValuationRatios(ctx context.Context, code, year, period string)
 	if err != nil {
 		return nil, err
 	}
-	return buildValuation(days[0], rep)
+
+	v, err := buildValuation(days[0], rep)
+	if err != nil {
+		return nil, err
+	}
+	// Dividend data rides on the (30-day-cached) profile payload; a failure
+	// here degrades the yield fields instead of failing the whole valuation.
+	if divs, derr := c.Dividends(ctx, code); derr != nil {
+		v.Notes = append(v.Notes, "Dividend data unavailable; yield omitted.")
+	} else {
+		applyDividendYield(v, divs)
+	}
+	return v, nil
+}
+
+// applyDividendYield fills the dividend fields from the most recent declared
+// book year's IDR cash dividends. This is the trailing *declared* dividend
+// (the profile payload has no full history), so the yield is indicative.
+func applyDividendYield(v *ValuationRatios, divs []Dividend) {
+	latestYear := ""
+	for _, d := range divs {
+		if d.BookYear > latestYear {
+			latestYear = d.BookYear
+		}
+	}
+	if latestYear == "" {
+		return
+	}
+	var perShare float64
+	skippedNonIDR := false
+	for _, d := range divs {
+		if d.BookYear != latestYear {
+			continue
+		}
+		if d.Currency != "" && d.Currency != "IDR" {
+			skippedNonIDR = true
+			continue
+		}
+		perShare += d.CashPerShare
+	}
+	if perShare <= 0 {
+		return
+	}
+	v.DividendPerShare = perShare
+	v.DividendBookYear = latestYear
+	v.DividendYield = perShare / v.Price * 100
+	v.Notes = append(v.Notes,
+		"Dividend yield uses the most recently declared book-year dividend(s), not a trailing-12-month history.")
+	if skippedNonIDR {
+		v.Notes = append(v.Notes, "Non-IDR dividend entries were excluded from the yield.")
+	}
 }
 
 // buildValuation is the pure ratio computation, separated for testability.

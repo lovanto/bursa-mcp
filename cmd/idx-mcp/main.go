@@ -178,6 +178,41 @@ type financialInput struct {
 	Period string `json:"period,omitempty" jsonschema:"reporting period: tw1, tw2, tw3, or audit (default tw1)"`
 }
 
+// ---- Tool: get_announcements ----
+
+type announcementInput struct {
+	Code    string `json:"code" jsonschema:"emiten ticker, e.g. BBCA"`
+	Keyword string `json:"keyword,omitempty" jsonschema:"optional search keyword, e.g. dividen or RUPS"`
+	Days    int    `json:"days,omitempty" jsonschema:"look-back window in days (1-365, default 30)"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"maximum announcements to return (default 20, max 50)"`
+}
+
+// ---- Tool: screen_stocks ----
+
+type screenerInput struct {
+	RankBy   string  `json:"rank_by,omitempty" jsonschema:"ranking: top_gainers, top_losers, most_active_value, most_active_volume, top_foreign_buy, or top_foreign_sell (default most_active_value)"`
+	Sector   string  `json:"sector,omitempty" jsonschema:"optional sector substring filter, e.g. Energi or Keuangan"`
+	MinValue float64 `json:"min_value,omitempty" jsonschema:"minimum traded value in IDR (filters out illiquid stocks)"`
+	MinPrice float64 `json:"min_price,omitempty" jsonschema:"minimum closing price in IDR"`
+	MaxPrice float64 `json:"max_price,omitempty" jsonschema:"maximum closing price in IDR"`
+	Limit    int     `json:"limit,omitempty" jsonschema:"maximum rows to return (default 20, max 100)"`
+}
+
+// ---- Tool: get_financial_growth ----
+
+type growthInput struct {
+	Code   string `json:"code" jsonschema:"emiten ticker, e.g. BBCA"`
+	Year   string `json:"year" jsonschema:"report year, e.g. 2026"`
+	Period string `json:"period,omitempty" jsonschema:"reporting period: tw1, tw2, tw3, or audit (default tw1)"`
+}
+
+// ---- Tool: get_foreign_flow_trend ----
+
+type flowTrendInput struct {
+	Code string `json:"code" jsonschema:"emiten ticker, e.g. BBCA"`
+	Days int    `json:"days,omitempty" jsonschema:"number of recent trading days to analyse (1-365, default 60)"`
+}
+
 // ---- Tool: get_valuation_ratios ----
 
 type valuationInput struct {
@@ -321,6 +356,50 @@ func registerTools(s *mcp.Server, client *idx.Client) {
 			return toolError(err), idx.FinancialReport{}, nil
 		}
 		return nil, *rep, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "get_announcements",
+		Description: "Official IDX disclosures (keterbukaan informasi) for a listed company, newest first: announcement number, date, title, and PDF attachment links. Filter by keyword (e.g. dividen, RUPS) and look-back window. This is where dividend schedules, RUPS calls, and corporate actions are announced.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in announcementInput) (*mcp.CallToolResult, idx.AnnouncementList, error) {
+		list, err := client.Announcements(ctx, in.Code, in.Keyword, in.Days, in.Limit)
+		if err != nil {
+			return toolError(err), idx.AnnouncementList{}, nil
+		}
+		return nil, *list, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "screen_stocks",
+		Description: "Screen the latest IDX trading day across all ~950 stocks: rank by gainers/losers, traded value/volume, or net foreign buy/sell, with optional sector, price-band, and minimum-liquidity filters. Price/flow data only (no fundamental screening).",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in screenerInput) (*mcp.CallToolResult, idx.ScreenerResult, error) {
+		res, err := client.ScreenStocks(ctx, in.RankBy, in.Sector, in.MinValue, in.MinPrice, in.MaxPrice, in.Limit)
+		if err != nil {
+			return toolError(err), idx.ScreenerResult{}, nil
+		}
+		return nil, *res, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "get_financial_growth",
+		Description: "Year-over-year growth analysis from an IDX-listed company's XBRL filing: revenue and profit vs the same period a year earlier, balance sheet vs the prior year-end, growth percentages, and net margin trend. Uses the comparatives embedded in a single filing.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in growthInput) (*mcp.CallToolResult, idx.FinancialGrowth, error) {
+		g, err := client.FinancialGrowth(ctx, in.Code, in.Year, in.Period)
+		if err != nil {
+			return toolError(err), idx.FinancialGrowth{}, nil
+		}
+		return nil, *g, nil
+	})
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "get_foreign_flow_trend",
+		Description: "Foreign accumulation/distribution analysis for an IDX-listed stock: net foreign flow (shares and approximate IDR value), foreign share of volume, and price change over 5/20/60-day windows, plus the current consecutive net-buy/net-sell streak. Built from official IDX foreign flow data.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in flowTrendInput) (*mcp.CallToolResult, idx.ForeignFlowTrend, error) {
+		tr, err := client.ForeignFlowTrend(ctx, in.Code, in.Days)
+		if err != nil {
+			return toolError(err), idx.ForeignFlowTrend{}, nil
+		}
+		return nil, *tr, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
